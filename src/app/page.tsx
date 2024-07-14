@@ -17,6 +17,8 @@ export default function NFC(){
         const data=await reader.send(new Uint8Array([0xFF,0xCA,0x00,0x00]));
         await reader.receive(64);
 
+        await reader.switchProtocol("Type-B");
+
         console.log(await reader.sendAPDU(0x00,0xA4,0x00,0x00));
         //const data=await reader.felicaPolling(0x0003);
 
