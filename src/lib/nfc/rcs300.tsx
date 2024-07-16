@@ -274,9 +274,43 @@ export default class NFCReader{
         return null;
     }
 
-    async sendAPDU(CLA:number,INS:number,P1:number,P2:number,timeout:number=10000){
-        const apdu=new Uint8Array(6);
-        apdu[0]=0x0A;
+    async setOption(data:Uint8Array){
+        const cmd=new Uint8Array(6+data.length);
+        cmd[0]=0xFF;
+        cmd[1]=0x50;
+        cmd[2]=0x00;
+        cmd[3]=0x02;
+        cmd[4]=0xFF&data.length;
+        cmd.set(data,5);
+
+        const sstatus=await this.send(cmd);
+        if(sstatus!="ok"){
+            throw Error("Failed to send");
+        }
+        
+        const response=await this.receive(64);
+        if(response.status!="ok"){
+            throw Error("Failed to receive");
+        }
+
+        const status=response.data.slice(3,5);
+
+        if(!(status[0]==0x90&&status[1]==0x00)){
+            console.log("Failed");
+        }
+        else{
+            console.log("Success");
+        }
+    }
+
+    async initISO14443(){
+        await this.setOption(new Uint8Array([0xff,0x6e,0x03,0x01,0x01,0x08,0xff,0x6e,0x03,0x08,0x01,0x02]));
+    }
+
+    async sendAPDU(CLA:number,INS:number,P1:number,P2:number,data?:Uint8Array,le?:number,timeout:number=10000){
+        const datalen=data?data.length+1:0;
+        const apdu=new Uint8Array(6+datalen+((typeof le==="number")?1:0));
+        apdu[0]=0x0B;
         apdu[1]=0x02;
 
         apdu[2]=CLA&0xFF;
@@ -284,10 +318,18 @@ export default class NFCReader{
         apdu[4]=P1&0xFF;
         apdu[5]=P2&0xFF;
 
-        const data=await this.felicaCommunicateThruEX(apdu,timeout);
-        if(data.data){
-            if(data.data.hasOwnProperty("97")){
-                return data.data["97"];
+        if(data){
+            apdu[6]=data.length;
+            apdu.set(data,7);
+        }
+        if(typeof le==="number"){
+            apdu[6+datalen]=le;
+        }
+
+        const redata=await this.felicaCommunicateThruEX(apdu,timeout);
+        if(redata.data){
+            if(redata.data.hasOwnProperty("97")){
+                return redata.data["97"];
             }
         }
 
